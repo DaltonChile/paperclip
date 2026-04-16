@@ -16,7 +16,7 @@ RUN apt-get update \
   && rm -rf /var/lib/apt/lists/* \
   && corepack enable
 
-# Configuración del usuario node
+# Configuración del usuario node y su home
 RUN usermod -u $USER_UID --non-unique node \
   && groupmod -g $USER_GID --non-unique node \
   && usermod -g $USER_GID -d /paperclip node
@@ -44,7 +44,7 @@ COPY patches/ patches/
 
 RUN pnpm install --frozen-lockfile
 
-# 3. ETAPA de BUILD
+# 3. ETAPA DE BUILD
 FROM base AS build
 WORKDIR /app
 COPY --from=deps /app /app
@@ -60,16 +60,20 @@ ARG USER_UID=1000
 ARG USER_GID=1000
 WORKDIR /app
 
-# Copiamos los archivos con los permisos correctos
+# Copiamos archivos de la etapa build
 COPY --chown=node:node --from=build /app /app
 
+# Instalaciones globales y preparación de directorios
 RUN npm install --global --omit=dev @anthropic-ai/claude-code@latest @openai/codex@latest opencode-ai \
   && mkdir -p /paperclip/instances/default/logs \
-  && chown -R node:node /paperclip
+  && chown -R node:node /paperclip \
+  && chmod -R 775 /paperclip
 
+# Copiamos el entrypoint
 COPY scripts/docker-entrypoint.sh /usr/local/bin/
 RUN chmod +x /usr/local/bin/docker-entrypoint.sh
 
+# Variables de entorno por defecto
 ENV NODE_ENV=production \
   HOME=/paperclip \
   HOST=0.0.0.0 \
@@ -84,8 +88,10 @@ ENV NODE_ENV=production \
   PAPERCLIP_DEPLOYMENT_EXPOSURE=private \
   OPENCODE_ALLOW_ALL_MODELS=true
 
-# EXPLICACIÓN: Se elimina VOLUME ["/paperclip"] para evitar error en Railway
 EXPOSE 3100
+
+# Iniciamos como root para que el entrypoint pueda hacer chown al volumen montado
+USER root
 
 ENTRYPOINT ["docker-entrypoint.sh"]
 CMD ["node", "--import", "./server/node_modules/tsx/dist/loader.mjs", "server/dist/index.js"]
