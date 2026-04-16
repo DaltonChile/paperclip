@@ -63,8 +63,12 @@ WORKDIR /app
 # Copiamos archivos de la etapa build
 COPY --chown=node:node --from=build /app /app
 
-# Instalaciones globales y preparación de directorios
-RUN npm install --global --omit=dev @anthropic-ai/claude-code@latest @openai/codex@latest opencode-ai \
+# INSTALACIÓN DE CLIS (Se agregó @google/gemini-cli)
+RUN npm install --global --omit=dev \
+    @anthropic-ai/claude-code@latest \
+    @google/gemini-cli@latest \
+    @openai/codex@latest \
+    opencode-ai \
   && mkdir -p /paperclip/instances/default/logs \
   && chown -R node:node /paperclip \
   && chmod -R 775 /paperclip
