@@ -1,4 +1,5 @@
 #!/bin/sh
+chown -R node:node /paperclip
 set -e
 
 # Capture runtime UID/GID from environment variables, defaulting to 1000
