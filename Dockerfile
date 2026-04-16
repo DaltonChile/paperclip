@@ -1,3 +1,10 @@
+# ESTA LÍNEA ES CRÍTICA, no la borres:
+FROM node:lts-trixie-slim AS base
+
+ARG USER_UID=1000
+ARG USER_GID=1000
+
+# Ahora sí viene el bloque de instalación:
 RUN apt-get update \
   && apt-get install -y --no-install-recommends ca-certificates gosu curl git wget ripgrep python3 \
   && mkdir -p -m 755 /etc/apt/keyrings \
@@ -8,6 +15,8 @@ RUN apt-get update \
   && apt-get install -y --no-install-recommends gh \
   && rm -rf /var/lib/apt/lists/* \
   && corepack enable
+
+# El resto del archivo sigue igual...
 
 # Modify the existing node user/group to have the specified UID/GID to match host user
 RUN usermod -u $USER_UID --non-unique node \
