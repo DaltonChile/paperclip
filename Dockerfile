@@ -1,10 +1,10 @@
-# ESTA LÍNEA ES CRÍTICA, no la borres:
+# 1. ETAPA BASE
 FROM node:lts-trixie-slim AS base
 
 ARG USER_UID=1000
 ARG USER_GID=1000
 
-# Ahora sí viene el bloque de instalación:
+# Instalación de dependencias del sistema y GitHub CLI corregida
 RUN apt-get update \
   && apt-get install -y --no-install-recommends ca-certificates gosu curl git wget ripgrep python3 \
   && mkdir -p -m 755 /etc/apt/keyrings \
@@ -16,13 +16,12 @@ RUN apt-get update \
   && rm -rf /var/lib/apt/lists/* \
   && corepack enable
 
-# El resto del archivo sigue igual...
-
-# Modify the existing node user/group to have the specified UID/GID to match host user
+# Configuración del usuario node
 RUN usermod -u $USER_UID --non-unique node \
   && groupmod -g $USER_GID --non-unique node \
   && usermod -g $USER_GID -d /paperclip node
 
+# 2. ETAPA DE DEPENDENCIAS
 FROM base AS deps
 WORKDIR /app
 COPY package.json pnpm-workspace.yaml pnpm-lock.yaml .npmrc ./
@@ -45,6 +44,7 @@ COPY patches/ patches/
 
 RUN pnpm install --frozen-lockfile
 
+# 3. ETAPA de BUILD
 FROM base AS build
 WORKDIR /app
 COPY --from=deps /app /app
@@ -54,14 +54,18 @@ RUN pnpm --filter @paperclipai/plugin-sdk build
 RUN pnpm --filter @paperclipai/server build
 RUN test -f server/dist/index.js || (echo "ERROR: server build output missing" && exit 1)
 
+# 4. ETAPA DE PRODUCCIÓN
 FROM base AS production
 ARG USER_UID=1000
 ARG USER_GID=1000
 WORKDIR /app
+
+# Copiamos los archivos con los permisos correctos
 COPY --chown=node:node --from=build /app /app
+
 RUN npm install --global --omit=dev @anthropic-ai/claude-code@latest @openai/codex@latest opencode-ai \
-  && mkdir -p /paperclip \
-  && chown node:node /paperclip
+  && mkdir -p /paperclip/instances/default/logs \
+  && chown -R node:node /paperclip
 
 COPY scripts/docker-entrypoint.sh /usr/local/bin/
 RUN chmod +x /usr/local/bin/docker-entrypoint.sh
@@ -80,6 +84,7 @@ ENV NODE_ENV=production \
   PAPERCLIP_DEPLOYMENT_EXPOSURE=private \
   OPENCODE_ALLOW_ALL_MODELS=true
 
+# EXPLICACIÓN: Se elimina VOLUME ["/paperclip"] para evitar error en Railway
 EXPOSE 3100
 
 ENTRYPOINT ["docker-entrypoint.sh"]
